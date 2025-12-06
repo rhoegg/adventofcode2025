@@ -1,38 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include "../common.h"
 
 int main(int argc, char **argv) {
-    const char *input_path = (argc > 1) ? argv[1] : "sample.txt";
-    FILE *f = fopen(input_path, "rb");
-    if (!f) {
-        fprintf(stderr, "Failed to open file: %s\n", input_path);
-        exit(EXIT_FAILURE);
-    }
-    // finding out how big the file is
-    if (fseek(f, 0, SEEK_END) != 0) {
-        fprintf(stderr, "Failed to seek to end of file: %s\n", input_path);
-        fclose(f);
-        exit(EXIT_FAILURE);
-    }
-    long len = ftell(f);
-    if (len < 0) {
-        fprintf(stderr, "Something wrong with the file, length is negative: %s\n", input_path);
-        fclose(f);
-        exit(EXIT_FAILURE);
-    }
-    rewind(f);
-
-    char *buf = malloc(len + 1);
-    // read the whole file
-    size_t read_len = fread(buf, 1, len, f);
-    if (read_len != (size_t)len) {
-        fprintf(stderr, "Failed to read the whole file: %s\n", input_path);
-        free(buf);
-        fclose(f);
-        exit(EXIT_FAILURE);
-    }
-    buf[len] = '\0';
-    fclose(f);
+    const char *input_path = (argc > 1) ? argv[1] : "day01/sample.txt";
+    long len;
+    char *buf = read_file(input_path, &len);
 
     // parse the file
     size_t capacity = 64;
