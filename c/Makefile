@@ -1,5 +1,5 @@
 CC      := clang
-CFLAGS  := -std=c17 -Wall -Wextra -O3
+CFLAGS  := -std=c23 -Wall -Wextra -O3
 LDFLAGS :=
 
 DAY ?= 01
