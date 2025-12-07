@@ -22,7 +22,8 @@ struct PrintingRoom {
 };
 
 struct PrintingRoom* parsePrintingRoom(char *buf);
-bool qualifies_part1(struct PrintingRoomPosition *p);
+bool forklift_accessible(struct PrintingRoomPosition *p);
+size_t count_and_remove_part2(struct PrintingRoom *room);
 
 int main(int argc, char **argv) {
     const char *input_path = (argc > 1) ? argv[1] : "day04/sample.txt";
@@ -35,22 +36,23 @@ int main(int argc, char **argv) {
 
     struct PrintingRoom *room = parsePrintingRoom(buf);
 
-    unsigned int part1_count = 0;
-    for (unsigned int i = 0; i < room->count; i++) {
+    size_t part1_count = 0;
+    for (size_t i = 0; i < room->count; i++) {
         struct PrintingRoomPosition *p = &(room->positions[i]);
-        if (qualifies_part1(p)) {
-            printf("found one %d, %d\n", p->x, p->y);
+        if (forklift_accessible(p)) {
             ++part1_count;
         }
     }
 
-    printf("Part 1: %d\n", part1_count);
+    printf("Part 1: %lu\n", part1_count);
+
+    printf("Part 2: %lu\n", count_and_remove_part2(room));
 
     free(room);
     free(buf);
 }
 
-bool qualifies_part1(struct PrintingRoomPosition *p) {
+bool forklift_accessible(struct PrintingRoomPosition *p) {
     const unsigned int max = 3;
     unsigned int neighbor_count = 0;
     if (!p->has_paper) return false;
@@ -68,6 +70,20 @@ bool qualifies_part1(struct PrintingRoomPosition *p) {
         if (p->south->east && p->south->east->has_paper) ++neighbor_count;
     }
     return neighbor_count <= max;
+}
+
+size_t count_and_remove_part2(struct PrintingRoom *room) {
+    size_t count = 0;
+    for (size_t i = 0; i < room->count; i++) {
+        struct PrintingRoomPosition *position = &(room->positions[i]);
+        if (forklift_accessible(position)) {
+            ++count;
+            position->has_paper = false;
+        }
+    }
+    if (count == 0) return 0;
+    printf("removed %lu\n", count);
+    return count + count_and_remove_part2(room);
 }
 
 struct PrintingRoom* parsePrintingRoom(char *buf) {
