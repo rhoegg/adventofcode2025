@@ -5,7 +5,7 @@ LDFLAGS :=
 DAY ?= 01
 
 SRC_COMMON := common.c
-SRC_DAY    := day$(DAY)/main.c
+SRC_DAY    := day$(DAY)/*.c
 BIN        := bin/day$(DAY)
 
 .PHONY: all run clean
