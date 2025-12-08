@@ -7,7 +7,7 @@
 
 JunctionBox decoration_project[2048];
 size_t box_count;
-void part1(PairHeap *heap, Circuit *circuits, size_t circuit_count, int pairs);
+void part2(PairHeap *heap, Circuit *circuits, size_t circuit_count);
 
 int main(int argc, char **argv) {
     const char *input_path = (argc > 1) ? argv[1] : "day08/sample.txt";
@@ -32,7 +32,7 @@ int main(int argc, char **argv) {
         };
     }
 
-    part1(heap, circuits, circuit_count, 1000);
+    part2(heap, circuits, circuit_count);
 
     free(circuits);
     free(heap);
@@ -49,10 +49,10 @@ int compare_circuits_desc(const void *a, const void *b) {
     return 0;
 }
 
-void part1(PairHeap *heap, Circuit *circuits, size_t circuit_count, int pairs) {
+void part2(PairHeap *heap, Circuit *circuits, size_t circuit_count) {
     int processed = 0;
     int connection_count = 0;
-    while (processed < pairs) {
+    while (circuit_count > 1) {
         Pair p = extract_pair_heap_min(heap);
         processed++;
         int circuit_a = -1, circuit_b = -1;
@@ -84,6 +84,9 @@ void part1(PairHeap *heap, Circuit *circuits, size_t circuit_count, int pairs) {
             // reduce count
             circuit_count--;
             connection_count++;
+            if (circuit_count == 1) {
+                printf("Part 2: %d * %d = %ld\n", p.a->x, p.b->x, (long) p.a->x * (long) p.b->x);
+            }
         }
         size_t boxes_in_circuits = 0;
         for (size_t i = 0; i < circuit_count; ++i) {
@@ -99,10 +102,11 @@ void part1(PairHeap *heap, Circuit *circuits, size_t circuit_count, int pairs) {
         printf("%lu ", circuits[i].box_count);
     }
     printf("\n");
-    qsort(circuits, circuit_count, sizeof(Circuit), compare_circuits_desc);
+    // qsort(circuits, circuit_count, sizeof(Circuit), compare_circuits_desc);
 
-    printf("Part 1: %lu*%lu*%lu=%lu\n", circuits[0].box_count, circuits[1].box_count, circuits[2].box_count, 
-            circuits[0].box_count * circuits[1].box_count * circuits[2].box_count);
+    // printf("Part 1: %lu*%lu*%lu=%lu\n", circuits[0].box_count, circuits[1].box_count, circuits[2].box_count, 
+    //         circuits[0].box_count * circuits[1].box_count * circuits[2].box_count);
+
 }
 
 PairHeap *make_heap(Pair *pairs) {
