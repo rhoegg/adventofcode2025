@@ -8,6 +8,14 @@ void swap(Trial *a, Trial *b) {
     *b = tmp;
 }
 
+int score(Trial t) {
+    int count = 0;
+    for (int i = 0; i < t.len_buttons; ++i) {
+        count += t.counts[i];
+    }
+    return count;
+}
+
 void heapify(TrialHeap *heap, int i) {
     int smallest = i;
     int left = 2 * i + 1;

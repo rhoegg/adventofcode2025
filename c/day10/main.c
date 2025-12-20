@@ -9,7 +9,7 @@
 
 Machine *machines;
 size_t len_machines;
-
+uint64_t spookyseed = 424242424242;
 void parse_input(char *buf) {
     char **lines = split(buf, '\n', &len_machines);
     for (size_t i = 0; i < len_machines; i++) {
@@ -136,121 +136,12 @@ void part1() {
 
 void part2() {
     int part2_sum = 0;
-    const uint64_t hashseed = 464646464646; 
 
     for (size_t i = 0; i < len_machines; ++i) {
         Machine m = machines[i];
-        Trial *trials = malloc(32 * sizeof(Trial));
-        uint64_t *seen_buttons = malloc(8192 * sizeof(uint64_t));
-        int len_seen_buttons = 0;
-        int capacity_seen_buttons = 8192;
-        long seen_count = 0;
-
-        // create a heap of paths, initialize with a single button press of each button, 
-        TrialHeap heap = {
-            .trials = trials,
-            .size = 0,
-            .capacity = 32
-        };
-        for (int j = 0; j < m.len_buttons; ++j) {
-            Trial t = {
-                .machine = m,
-                .buttons = {m.buttons[j]},
-                .len_buttons = 1
-            };
-            insert_heap(&heap, t);
-        }
-
-        printf("Starting machine %lu\n", i);
-        long combinations_tried = 0;
-        while(heap.size > 0) {
-            Trial t = extract_heap_min(&heap);
-            int joltages[32];
-            for (int j = 0; j < t.machine.len_joltage; ++j) {
-                joltages[j] = 0;
-            }
-            for (int j = 0; j < t.len_buttons; ++j) {
-                // for this button, increment the proper counters
-                int button_value = t.buttons[j];
-                for (int k = 0; k < m.len_joltage; ++k) {
-                    if (button_value % 2 == 1) {
-                        joltages[m.len_joltage - k - 1]++; // increment the joltage for this position on this button
-                    }
-                    button_value /= 2;
-                }
-                // for (int k = 0; k < m.len_joltage; ++k) {
-                //     printf("%d ", joltages[k]);
-                // }
-                // printf("\n");
-            }
-
-            if (!memcmp(m.joltage, joltages, m.len_joltage * sizeof(int))) { // arrays are equal
-                // winner!
-                part2_sum += t.len_buttons;
-                printf("machine %lu succeeded in %d button presses:", i, t.len_buttons);
-                for (int j = 0; j < t.len_buttons; ++j) {
-                    printf(" %d", t.buttons[j]);
-                }
-                printf("\n");
-                break;
-            } else {
-                combinations_tried++;
-                if (combinations_tried % 1000 == 0) {
-                    printf("Tried %ld combinations, button length is %d, current joltage:", combinations_tried, t.len_buttons);
-                    for (int j = 0; j < m.len_joltage; ++j) {
-                        printf(" %d", joltages[j]);
-                    }
-                    printf("\n");
-                }
-                // if any joltages are too high, this base set of button presses is invalid!
-                bool too_much_joltage = false;
-                for (int j = 0; j < m.len_joltage; ++j) {
-                    if (joltages[j] > m.joltage[j]) {
-                        // joltage overload!
-                        printf("pruning a combination because too much joltage was found!\n");
-                        too_much_joltage = true;
-                    }
-                }
-                if (!too_much_joltage) {
-                    for (int j = 0; j < m.len_buttons; ++j) {
-                        // for this one repeats are desirable but we want combinations not permutations
-                        Trial new_trial = t;
-                        new_trial.buttons[new_trial.len_buttons] = m.buttons[j];
-                        new_trial.len_buttons++;
-
-                        // but only once each!
-                        int hash_buttons[new_trial.len_buttons];
-                        for (int k = 0; k < new_trial.len_buttons; ++k) {
-                            hash_buttons[k] = new_trial.buttons[k];
-                        }
-                        qsort(hash_buttons, new_trial.len_buttons, sizeof(int), compare_int);
-
-                        uint64_t trial_hash = spookyhash64(hash_buttons, new_trial.len_buttons * sizeof(int), hashseed);
-                        bool seen = false;
-                        for (int k = 0; k < len_seen_buttons; ++k) {
-                            if (trial_hash == seen_buttons[k]) {
-                                seen = true;
-                                ++seen_count;
-                                break;
-                            }
-                        }
-                        if (!seen) {
-                            if (len_seen_buttons == capacity_seen_buttons) {
-                                capacity_seen_buttons *= 2;
-                                seen_buttons = realloc(seen_buttons, capacity_seen_buttons * sizeof(uint64_t));
-                            }
-                            assert(len_seen_buttons < capacity_seen_buttons);
-                            seen_buttons[len_seen_buttons++] = trial_hash;
-                            insert_heap(&heap, new_trial);
-                        }
-                    }
-                } 
-            }
-        }
-        printf("Repeated trials avoided for this machine: %lu\n", seen_count);
-        free(seen_buttons);
-        free(heap.trials);
+        part2_sum += find_button_presses(&m);
     }
+
     printf("Part 2: %d\n", part2_sum);
 }
 
@@ -258,4 +149,129 @@ int compare_int(const void *a, const void *b) {
     const int *ia = a;
     const int *ib = b;
     return (*ia > *ib) - (*ia < *ib);
+}
+
+bool joltage_match(Machine *m, int *joltage) {
+    for (int i = 0; i < m->len_joltage; ++i) {
+        if (joltage[i] != m->joltage[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void apply_buttons(Machine *m, Trial *t, int *joltage) {
+    for (int b = 0; b < m->len_buttons; ++b) {
+        for (int c = 0; c < m->len_joltage; ++c) {
+            if (button_influences_counter(m, b, c)) {
+                joltage[c] += t->counts[b];
+            }
+        }
+    }
+}
+
+
+int find_button_presses(Machine *machine) {
+    int presses_required = 0;
+    TrialHeap *heap = malloc(sizeof(TrialHeap));
+    heap->size = 0;
+    heap->capacity = 256;
+    heap->trials = malloc(heap->capacity * sizeof(Trial));
+
+    Trial trial = {
+        .len_buttons = 0,
+        .machine = *machine,
+    };
+    for (int i = 0; i < machine->len_buttons; ++i) {
+        trial.counts[i] = 0;
+    }
+    insert_heap(heap, trial);
+    uint64_t *seen = malloc(2048 * sizeof(uint64_t));
+    int capacity_seen = 2048;
+    int len_seen = 0;
+    int cache_hits = 0;
+
+    while (presses_required == 0) {
+        trial = extract_heap_min(heap); // program will crash here if the heap is empty which is fine
+        bool seen_this = false;
+        uint64_t this_hash = spookyhash64(trial.counts, sizeof(trial.counts), spookyseed);
+        for (int i = 0; i < len_seen; ++i) {
+            if (seen[i] == this_hash) {
+                seen_this = true;
+                cache_hits++;
+                break;
+            }
+        }
+        if (seen_this) continue;
+        if (len_seen == capacity_seen) {
+            capacity_seen *= 2;
+            seen = realloc(seen, capacity_seen * sizeof(uint64_t));
+        }
+        seen[len_seen++] = this_hash;
+        for (int i = 0; i < machine->len_buttons; ++i) {
+            bool loud = false;
+            int cum_joltage[machine->len_joltage];
+            memset(cum_joltage, 0, machine->len_joltage * sizeof(int));
+            apply_buttons(machine, &trial, cum_joltage);
+            if (loud) {
+                printf("checking trial for ");
+                for (int j = 0; j < machine->len_buttons; ++j) {
+                    printf("%d ", trial.counts[j]);
+                }
+                printf("button %d\n", i);
+                printf("joltage ");
+                for (int j = 0; j < machine->len_joltage; ++j) {
+                    printf("%d ", cum_joltage[j]);
+                }                
+            }
+
+            if (presses_required == 0) {
+                if (joltage_match(machine, cum_joltage)) {
+                    // we're done
+                    printf("joltage ");
+                    for (int j = 0; j < machine->len_joltage; ++j) {
+                        printf("%d ", cum_joltage[j]);
+                    }
+                    printf("\n");
+                    presses_required = trial.len_buttons;
+                    printf("Found buttons %d\n", trial.len_buttons);
+                    break;
+                } else {
+                    // enumerate all possibilities using this button
+                    for (int c = 0; c < machine->len_joltage; ++c) {
+                        for (int j = 0; j < machine->joltage[c] - cum_joltage[c] + 1; ++j) {
+                            Trial next_trial;
+                            memcpy(&next_trial, &trial, sizeof(next_trial));
+                            // bump all counters influenced by this button
+                            bool overflow = false;
+                            int next_joltage[machine->len_joltage];
+                            memset(next_joltage, 0, machine->len_joltage * sizeof(int));
+                            for (int k = 0; k < machine->len_joltage; ++k) {
+                                if (button_influences_counter(machine, i, k)) {
+                                    next_joltage[k] += j; // j is how many presses, k is the counter, i is the button
+                                    overflow = overflow || (next_joltage[k] > machine->joltage[k]);
+                                }
+                            }
+                            if (!overflow) {
+                                next_trial.counts[i] += j;
+                                next_trial.len_buttons += j;
+                                insert_heap(heap, next_trial);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    free(seen);
+    free(heap->trials);
+    free(heap);
+    return presses_required;
+}
+
+bool button_influences_counter(Machine *m, int button_index, int counter) {
+    if (counter >= m->len_joltage) return false;
+    // printf("button %d is %d\n", button_index, m->buttons[button_index]);
+    // printf("button %d shifted %d is %d\n", button_index, (m->len_joltage - counter - 1), (m->buttons[button_index] >> (m->len_joltage - counter - 1)));
+    return ((m->buttons[button_index] >> (m->len_joltage - counter - 1)) % 2);
 }
